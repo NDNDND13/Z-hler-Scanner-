@@ -1,97 +1,133 @@
 <!DOCTYPE html>
-<html lang="de">
+<html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>Zähler-Scanner</title>
+<title>ista · Energy Meter Scan</title>
 <style>
   :root {
-    --ink: #0d1b2a;
-    --paper: #f5f3ee;
-    --signal: #ff5a1f;
-    --ok: #1f7a4d;
-    --mono: "SF Mono", ui-monospace, monospace;
+    --ista-navy: #00003C;
+    --ista-lime: #A4CE4E;
+    --ista-lime-dark: #7fae2e;
+    --paper: #ffffff;
+    --mist: #f4f5f8;
+    --line: #e2e4ec;
+    --ink: #00003C;
+    --muted: #6b6e85;
+    --ok: #4a8a2a;
+    --sans: "Helvetica Neue", Arial, sans-serif;
   }
   * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
-  html, body { height: 100%; background: var(--ink); color: var(--paper);
-    font-family: "Helvetica Neue", Arial, sans-serif; }
+  html, body { height: 100%; background: var(--mist); color: var(--ink); font-family: var(--sans); }
   body { display: flex; flex-direction: column; min-height: 100dvh; }
-  header { padding: 14px 18px 12px; border-bottom: 1px solid rgba(255,255,255,0.08);
-    display: flex; align-items: baseline; justify-content: space-between; }
-  header .mark { font-family: var(--mono); font-size: 11px; letter-spacing: 0.22em;
-    text-transform: uppercase; color: var(--signal); }
-  header h1 { font-size: 17px; font-weight: 700; }
+
+  header { background: var(--ista-navy); padding: 16px 18px 14px; display: flex; flex-direction: column; align-items: center; gap: 8px; }
+  header .logo-svg { height: 42px; width: auto; display: block; }
+  .header-sub { font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase;
+    color: rgba(244,247,249,0.7); }
+
+  /* Headline-Band */
+  .headline { background: var(--ista-navy); color: #fff; padding: 0 18px 24px; text-align: center; }
+  .headline .meter-icon { flex: 0 0 auto; }
+  .headline h1 { font-size: 22px; font-weight: 700; line-height: 1.2; letter-spacing: -0.01em; }
 
   .stage { position: relative; flex: 1; min-height: 0; background: #000;
     display: flex; align-items: center; justify-content: center; overflow: hidden; }
   video { width: 100%; height: 100%; object-fit: cover; }
   .overlay { position: absolute; inset: 0; pointer-events: none; }
-  .scan-frame { position: absolute; left: 50%; top: 46%; transform: translate(-50%,-50%);
-    width: 78%; height: 78px; box-shadow: 0 0 0 9999px rgba(5,8,12,0.62); border-radius: 6px;
-    border: 2px solid var(--signal); }
-  .hint { position: absolute; left: 0; right: 0; top: calc(46% + 58px); text-align: center;
-    font-family: var(--mono); font-size: 11px; letter-spacing: 0.16em; text-transform: uppercase;
-    color: rgba(245,243,238,0.72); padding: 0 24px; }
+  .scan-frame { position: absolute; left: 50%; top: 44%; transform: translate(-50%,-50%);
+    width: 80%; height: 80px; box-shadow: 0 0 0 9999px rgba(0,0,60,0.55); border-radius: 8px;
+    border: 2px solid var(--ista-lime); }
+  .hint { position: absolute; left: 0; right: 0; top: calc(44% + 60px); text-align: center;
+    font-size: 12px; letter-spacing: 0.06em; color: rgba(255,255,255,0.85); padding: 0 24px; }
 
-  .start-cover { position: absolute; inset: 0; z-index: 4; background: var(--ink);
+  .start-cover { position: absolute; inset: 0; z-index: 4; background: var(--ista-navy);
     display: flex; flex-direction: column; align-items: center; justify-content: center;
-    text-align: center; padding: 28px; gap: 18px; }
-  .start-cover p { font-family: var(--mono); font-size: 13px; line-height: 1.6;
-    color: rgba(245,243,238,0.8); }
+    text-align: center; padding: 28px; gap: 22px; color: #fff; }
+  .start-cover .meter-icon { margin-bottom: 4px; }
+  .start-cover p { font-size: 14px; line-height: 1.6; color: rgba(244,247,249,0.85); max-width: 280px; }
   .start-cover.hidden { display: none; }
 
-  .panel { padding: 16px 18px calc(16px + env(safe-area-inset-bottom)); background: var(--ink);
-    border-top: 1px solid rgba(255,255,255,0.08); }
-  .readout { background: #0a141f; border: 1px solid rgba(255,255,255,0.1); border-radius: 10px;
-    padding: 14px 16px; margin-bottom: 14px; min-height: 78px; display: flex; flex-direction: column;
-    justify-content: center; }
-  .readout .label { font-family: var(--mono); font-size: 10px; letter-spacing: 0.2em;
-    text-transform: uppercase; color: rgba(245,243,238,0.5); margin-bottom: 6px; }
-  .readout .value { font-family: var(--mono); font-size: 30px; font-weight: 700;
-    letter-spacing: 0.06em; word-break: break-all; line-height: 1.1; }
-  .readout .value.placeholder { color: rgba(245,243,238,0.28); }
-  .readout .value.done { color: var(--signal); }
-  .readout .meta { font-family: var(--mono); font-size: 11px; color: var(--ok); margin-top: 6px;
-    min-height: 14px; }
+  .panel { padding: 18px 18px calc(18px + env(safe-area-inset-bottom)); background: var(--paper);
+    border-top: 1px solid var(--line); }
+  .readout { background: var(--mist); border: 1px solid var(--line); border-radius: 12px;
+    padding: 16px 18px; margin-bottom: 14px; min-height: 84px; display: flex; flex-direction: column;
+    justify-content: center; align-items: center; text-align: center; }
+  .readout .label { font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase;
+    color: var(--muted); margin-bottom: 8px; }
+  .readout .value { font-size: 34px; font-weight: 700; letter-spacing: 0.04em; color: var(--ink);
+    word-break: break-all; line-height: 1.05; }
+  .readout .value.placeholder { color: #c2c5d2; }
+  .readout .value.done { color: var(--ista-navy); }
+  .readout .meta { font-size: 12px; color: var(--ok); margin-top: 8px; min-height: 15px; font-weight: 600; }
 
-  .btn { width: 100%; border: 0; border-radius: 10px; padding: 16px; font-family: var(--mono);
-    font-size: 14px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase;
-    background: var(--signal); color: #1a0a02; cursor: pointer; }
-  .btn:active { transform: scale(0.985); }
-  .btn:disabled { opacity: 0.45; }
+  .btn { width: 100%; border: 0; border-radius: 12px; padding: 17px; font-family: var(--sans);
+    font-size: 15px; font-weight: 700; letter-spacing: 0.04em; background: var(--ista-lime);
+    color: var(--ista-navy); cursor: pointer; transition: background 0.15s ease;
+    display: inline-flex; align-items: center; justify-content: center; gap: 10px; }
+  .btn:active { background: var(--ista-lime-dark); }
+  .btn:disabled { opacity: 0.4; }
+  .start-cover .btn { width: auto; padding: 16px 32px; }
 
-  #log { font-family: var(--mono); font-size: 11px; line-height: 1.5; color: #ffb38a;
-    padding: 8px 18px; background: #160a04; border-top: 1px solid rgba(255,90,31,0.3);
-    max-height: 96px; overflow: auto; white-space: pre-wrap; display: none; }
+  #log { font-family: ui-monospace, monospace; font-size: 11px; line-height: 1.5; color: #b23;
+    padding: 8px 18px; background: #fff4f4; border-top: 1px solid #f3d0d0;
+    max-height: 90px; overflow: auto; white-space: pre-wrap; display: none; }
   #log.show { display: block; }
   canvas { display: none; }
 </style>
 </head>
 <body>
   <header>
-    <h1>Zähler-Scanner</h1>
-    <span class="mark">OCR · Demo</span>
+    <svg class="logo-svg" viewBox="0 0 283.5 170.1" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="ista">
+      <g fill="#F4F7F9">
+        <path d="M226.8,56.7c0,0-12.1-0.4-19.8-0.4c-15.7,0-25.3,8.4-29.1,15.1c-3.4,5.9-6.2,13.2-6.2,22.3c0,8.6,3.8,20.4,14.1,20.4c8.2,0,13.7-5.8,15.2-8v7.3h15.8v-8c0-3.3,0.4-6.6,1.1-9.8L226.8,56.7z M201.9,94.2c-1.6,1.9-4.2,5.2-8.9,5.2c-4,0-5.2-4.9-5.2-8c0-6.9,2.2-12.9,6.4-17.8c4.1-4.8,11-4.9,13.5-4.7L201.9,94.2z"/>
+        <path d="M103.5,59.8c-3,1.6-5.7,3.7-7.5,6.1c-1.3,1.7-2.5,4.1-2.9,7c-0.3,2-0.2,4,0.4,5.9c1,3,3.3,5.8,7.6,9.4c1.5,1.2,4.9,3.7,6,4.9c4.3,4.5,0.5,8-5.8,8.2c-6.8,0.2-12-0.8-12-0.8l-3,13c1.4,0.2,9.8,1,19.5,0.5c15.3-0.7,23.2-10.1,22.8-19.7c-0.3-5.3-5-10.6-10.1-14.1c-0.7-0.5-1.4-1.1-2.2-1.6c-3.1-2.3-4.2-3.3-4.6-4.7c-0.5-1.8,0.7-4.2,3.7-4.8c4.5-1,10.5-0.6,14.6-0.1l2.8-12.2c0,0-7.8-0.7-13.6-0.5C113.5,56.4,107.8,57.5,103.5,59.8z"/>
+        <path d="M62.6,87.6l-5.9,25.8h17.8L82.8,77C75.7,79.9,68.9,83.5,62.6,87.6z"/>
+        <path d="M84.6,68.8l2.8-12.2H69.6l-3.7,16.2C72,71,78.2,69.7,84.6,68.8z"/>
+        <path d="M159.5,68.8l11.7,0l2.8-12.2h-11.7l3.5-15.2l-18.3,2.3l-11.5,50.6c-1.2,5.1-1.5,10.8,1.8,14.9c2.4,2.9,6.7,4.6,12.4,4.6c4.7,0,11-0.6,11-0.6l3-13c-1.2,0.1-3.2,0.2-4.6,0.2c-2.2,0-3.9-0.1-5-1.2c-1.1-1.2-1.3-2.8-0.7-5.1L159.5,68.8z"/>
+      </g>
+    </svg>
+    <span class="header-sub">Energy Meter Scan</span>
   </header>
+
+  <div class="headline">
+    <h1>Track your energy consumption.</h1>
+  </div>
 
   <div class="stage">
     <video id="video" playsinline muted autoplay></video>
     <div class="overlay">
       <div class="scan-frame"></div>
-      <div class="hint">Ziffernrolle in den Rahmen legen</div>
+      <div class="hint">Place the meter's digit row inside the frame</div>
     </div>
     <div class="start-cover" id="startCover">
-      <p>Tippe auf „Kamera starten".<br>iOS fragt dann nach Kamerazugriff – bitte erlauben.</p>
-      <button class="btn" id="startBtn" style="width:auto;padding:16px 28px;">Kamera starten</button>
+      <svg class="meter-icon" width="64" height="64" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Energy meter">
+        <rect x="7" y="5" width="34" height="38" rx="5" stroke="#A4CE4E" stroke-width="2.5"/>
+        <path d="M24 13a11 11 0 0 0-11 11h22a11 11 0 0 0-11-11z" stroke="#F4F7F9" stroke-width="2.2" stroke-linejoin="round"/>
+        <path d="M24 24l7-5" stroke="#A4CE4E" stroke-width="2.6" stroke-linecap="round"/>
+        <circle cx="24" cy="24" r="2.4" fill="#A4CE4E"/>
+        <rect x="14" y="32" width="20" height="6" rx="1.5" fill="#F4F7F9"/>
+        <path d="M21.5 35h2M25 35h1.5M28 35h1" stroke="#00003C" stroke-width="1.4" stroke-linecap="round"/>
+      </svg>
+      <p>Tap “Scan Meter here” and allow camera access when prompted.</p>
+      <button class="btn" id="startBtn">Scan Meter here</button>
     </div>
   </div>
 
   <div class="panel">
     <div class="readout">
-      <div class="label">Zählerstand</div>
+      <div class="label">Captured meter reading</div>
       <div class="value placeholder" id="value">– – – – –</div>
       <div class="meta" id="meta"></div>
     </div>
-    <button class="btn" id="scanBtn" disabled>Scannen</button>
+    <button class="btn" id="scanBtn" disabled>
+      <svg width="20" height="20" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <rect x="7" y="5" width="34" height="38" rx="5" stroke="#00003C" stroke-width="3"/>
+        <path d="M24 13a11 11 0 0 0-11 11h22a11 11 0 0 0-11-11z" stroke="#00003C" stroke-width="2.6" stroke-linejoin="round"/>
+        <path d="M24 24l7-5" stroke="#00003C" stroke-width="3" stroke-linecap="round"/>
+      </svg>
+      Scan Meter here
+    </button>
   </div>
 
   <div id="log"></div>
@@ -100,74 +136,50 @@
 <script>
 const $ = id => document.getElementById(id);
 const logEl = $('log');
-function log(msg) {
-  logEl.classList.add('show');
-  logEl.textContent += msg + '\n';
-  logEl.scrollTop = logEl.scrollHeight;
-}
-window.onerror = (m, src, line) => { log('FEHLER: ' + m + ' (Zeile ' + line + ')'); };
-window.addEventListener('unhandledrejection', e => { log('FEHLER (promise): ' + (e.reason && e.reason.message ? e.reason.message : e.reason)); });
+function log(msg) { logEl.classList.add('show'); logEl.textContent += msg + '\n'; logEl.scrollTop = logEl.scrollHeight; }
+window.onerror = (m, src, line) => { log('ERROR: ' + m + ' (line ' + line + ')'); };
+window.addEventListener('unhandledrejection', e => { log('ERROR: ' + (e.reason && e.reason.message ? e.reason.message : e.reason)); });
 
-const video   = $('video');
-const canvas  = $('canvas');
-const ctx     = canvas.getContext('2d');
-const scanBtn = $('scanBtn');
-const startBtn= $('startBtn');
-const startCover = $('startCover');
-const valueEl = $('value');
-const metaEl  = $('meta');
-
-let worker = null;
-let tesseractLoaded = false;
+const video = $('video'), canvas = $('canvas'), ctx = canvas.getContext('2d');
+const scanBtn = $('scanBtn'), startBtn = $('startBtn'), startCover = $('startCover');
+const valueEl = $('value'), metaEl = $('meta');
+let worker = null, tesseractLoaded = false;
 
 startBtn.addEventListener('click', async () => {
-  startBtn.disabled = true;
-  startBtn.textContent = 'Starte …';
+  startBtn.disabled = true; startBtn.textContent = 'Starting …';
   try {
-    log('Fordere Kamerazugriff an …');
-    const stream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: { ideal: 'environment' } }, audio: false
-    });
-    video.srcObject = stream;
-    await video.play();
-    log('Kamera läuft ✓');
-    startCover.classList.add('hidden');
-    scanBtn.disabled = false;
+    const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' } }, audio: false });
+    video.srcObject = stream; await video.play();
+    startCover.classList.add('hidden'); scanBtn.disabled = false;
   } catch (err) {
-    log('Kamera-Fehler: ' + err.name + ' – ' + err.message);
-    startBtn.disabled = false;
-    startBtn.textContent = 'Erneut versuchen';
+    log('Camera error: ' + err.name + ' – ' + err.message);
+    startBtn.disabled = false; startBtn.textContent = 'Try again';
   }
 });
 
 function loadTesseract() {
   return new Promise((resolve, reject) => {
     if (tesseractLoaded) return resolve();
-    log('Lade OCR-Bibliothek …');
     const s = document.createElement('script');
     s.src = 'https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js';
-    s.onload = () => { tesseractLoaded = true; log('OCR geladen ✓'); resolve(); };
-    s.onerror = () => reject(new Error('OCR-Bibliothek konnte nicht geladen werden (Netzwerk/CDN blockiert?)'));
+    s.onload = () => { tesseractLoaded = true; resolve(); };
+    s.onerror = () => reject(new Error('Could not load OCR library (network?)'));
     document.head.appendChild(s);
   });
 }
 
 scanBtn.addEventListener('click', async () => {
   scanBtn.disabled = true;
-  valueEl.className = 'value'; valueEl.textContent = 'lese …'; metaEl.textContent = '';
+  valueEl.className = 'value'; valueEl.textContent = 'reading …'; metaEl.textContent = '';
   try {
     await loadTesseract();
     if (!worker) {
-      log('Initialisiere OCR …');
       worker = await Tesseract.createWorker('eng');
       await worker.setParameters({ tessedit_char_whitelist: '0123456789', tessedit_pageseg_mode: '7' });
-      log('OCR bereit ✓');
     }
     const vw = video.videoWidth, vh = video.videoHeight;
-    const cropW = vw * 0.78, cropH = vh * 0.16;
-    const cropX = (vw - cropW) / 2, cropY = vh * 0.46 - cropH / 2;
-    const scale = 3;
-    canvas.width = cropW * scale; canvas.height = cropH * scale;
+    const cropW = vw * 0.80, cropH = vh * 0.16, cropX = (vw - cropW) / 2, cropY = vh * 0.44 - cropH / 2;
+    const scale = 3; canvas.width = cropW * scale; canvas.height = cropH * scale;
     ctx.drawImage(video, cropX, cropY, cropW, cropH, 0, 0, canvas.width, canvas.height);
     const img = ctx.getImageData(0,0,canvas.width,canvas.height), d = img.data;
     for (let i=0;i<d.length;i+=4){ const g=0.299*d[i]+0.587*d[i+1]+0.114*d[i+2]; const v=g>110?255:0; d[i]=d[i+1]=d[i+2]=v; }
@@ -176,21 +188,17 @@ scanBtn.addEventListener('click', async () => {
     const digits = (data.text||'').replace(/\D/g,'');
     if (digits.length >= 3) {
       valueEl.textContent = digits; valueEl.className = 'value done';
-      metaEl.textContent = '✓ erkannt · Konfidenz ' + Math.round(data.confidence||0) + '%';
+      metaEl.style.color = ''; metaEl.textContent = '✓ Recognised · confidence ' + Math.round(data.confidence||0) + '%';
     } else {
       valueEl.textContent = '– – – – –'; valueEl.className = 'value placeholder';
-      metaEl.style.color = '#ff5a1f'; metaEl.textContent = 'Keine Ziffern erkannt – näher ran, ruhig halten.';
+      metaEl.style.color = '#c0392b'; metaEl.textContent = 'No digits detected – move closer, hold steady.';
       setTimeout(()=>{ metaEl.style.color=''; }, 2500);
     }
   } catch (e) {
-    log('Scan-Fehler: ' + (e.message || e));
-    valueEl.textContent = 'Fehler'; valueEl.className = 'value placeholder';
-  } finally {
-    scanBtn.disabled = false;
-  }
+    log('Scan error: ' + (e.message || e));
+    valueEl.textContent = 'Error'; valueEl.className = 'value placeholder';
+  } finally { scanBtn.disabled = false; }
 });
-
-log('App geladen ✓ – tippe „Kamera starten".');
 </script>
 </body>
 </html>
