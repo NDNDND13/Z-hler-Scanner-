@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Zähler-Scanner</title>
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+<style>
+  :root {
+    --ink: #0d1b2a;
+    --paper: #f5f3ee;
+    --signal: #ff5a1f;       /* warnsignal-orange, wie an Zählerkästen */
+    --signal-dim: #ffe3d6;
+    --grid: #c7c1b4;
+    --ok: #1f7a4d;
+    --mono: "SF Mono", "JetBrains Mono", "Roboto Mono", ui-monospace, monospace;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+
+  html, body {
+    height: 100%;
+    background: var(--ink);
+    color: var(--paper);
+    font-family: "Helvetica Neue", Arial, sans-serif;
+    overscroll-behavior: none;
+  }
+
+  body {
+    display: flex;
+    flex-direction: column;
+    min-height: 100dvh;
+  }
+
+  header {
+    padding: 14px 18px 12px;
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+  }
+  header .mark {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--signal);
+  }
+  header h1 {
+    font-size: 17px;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+  }
+
+  /* ---- Kamera-Bühne ---- */
+  .stage {
+    position: relative;
+    flex: 1;
+    min-height: 0;
+    background: #000;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  video {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  /* Overlay: alles dunkel außer dem Scan-Fenster */
+  .overlay {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+  }
+  .scan-frame {
+    position: absolute;
+    left: 50%;
+    top: 46%;
+    transform: translate(-50%, -50%);
+    width: 78%;
+    height: 78px;
+    box-shadow: 0 0 0 9999px rgba(5,8,12,0.62);
+    border-radius: 6px;
+  }
+  /* Eck-Winkel statt voller Rahmen – wirkt wie ein Messinstrument */
+  .scan-frame::before,
+  .scan-frame::after,
+  .corners span {
+    content: "";
+    position: absolute;
+    width: 20px;
+    height: 20px;
+    border: 2.5px solid var(--signal);
+  }
+  .scan-frame::before { top: -2px; left: -2px; border-right: 0; border-bottom: 0; border-top-left-radius: 6px; }
+  .scan-frame::after  { top: -2px; right: -2px; border-left: 0; border-bottom: 0; border-top-right-radius: 6px; }
+  .corners span:first-child { bottom: -2px; left: -2px; border-right: 0; border-top: 0; border-bottom-left-radius: 6px; }
+  .corners span:last-child  { bottom: -2px; right: -2px; border-left: 0; border-top: 0; border-bottom-right-radius: 6px; }
+
+  .hint {
+    position: absolute;
+    left: 0; right: 0;
+    top: calc(46% + 58px);
+    text-align: center;
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: rgba(245,243,238,0.72);
+    padding: 0 24px;
+  }
+
+  /* ---- Steuerung unten ---- */
+  .panel {
+    padding: 16px 18px calc(16px + env(safe-area-inset-bottom));
+    background: var(--ink);
+    border-top: 1px solid rgba(255,255,255,0.08);
+  }
+
+  .readout {
+    background: #0a141f;
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 10px;
+    padding: 14px 16px;
+    margin-bottom: 14px;
+    min-height: 78px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+  }
+  .readout .label {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: rgba(245,243,238,0.5);
+    margin-bottom: 6px;
+  }
+  .readout .value {
+    font-family: var(--mono);
+    font-size: 30px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    color: var(--paper);
+    word-break: break-all;
+    line-height: 1.1;
+  }
+  .readout .value.placeholder { color: rgba(245,243,238,0.28); }
+  .readout .value.done { color: var(--signal); }
+
+  .readout .meta {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--ok);
+    margin-top: 6px;
+    min-height: 14px;
+  }
+
+  .btn {
+    width: 100%;
+    border: 0;
+    border-radius: 10px;
+    padding: 16px;
+    font-family: var(--mono);
+    font-size: 14px;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    background: var(--signal);
+    color: #1a0a02;
+    cursor: pointer;
+    transition: transform 0.08s ease, opacity 0.2s ease;
+  }
+  .btn:active { transform: scale(0.985); }
+  .btn:disabled { opacity: 0.45; }
+
+  .progress {
+    height: 3px;
+    background: rgba(255,255,255,0.08);
+    border-radius: 2px;
+    overflow: hidden;
+    margin-top: 12px;
+  }
+  .progress > div {
+    height: 100%;
+    width: 0%;
+    background: var(--signal);
+    transition: width 0.2s ease;
+  }
+
+  .status {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 28px;
+    font-family: var(--mono);
+    font-size: 13px;
+    line-height: 1.6;
+    color: rgba(245,243,238,0.8);
+    background: var(--ink);
+    z-index: 3;
+  }
+  .status.hidden { display: none; }
+  canvas { display: none; }
+</style>
+</head>
+<body>
+  <header>
+    <h1>Zähler-Scanner</h1>
+    <span class="mark">OCR · Demo</span>
+  </header>
+
+  <div class="stage">
+    <video id="video" playsinline muted autoplay></video>
+    <div class="overlay">
+      <div class="scan-frame"><div class="corners"><span></span><span></span></div></div>
+      <div class="hint">Ziffernrolle in den Rahmen legen</div>
+    </div>
+    <div class="status" id="status">Kamera wird gestartet …</div>
+  </div>
+
+  <div class="panel">
+    <div class="readout">
+      <div class="label">Zählerstand</div>
+      <div class="value placeholder" id="value">– – – – –</div>
+      <div class="meta" id="meta"></div>
+    </div>
+    <button class="btn" id="scanBtn" disabled>Scannen</button>
+    <div class="progress"><div id="bar"></div></div>
+  </div>
+
+  <canvas id="canvas"></canvas>
+
+<script>
+const video   = document.getElementById('video');
+const canvas  = document.getElementById('canvas');
+const ctx     = canvas.getContext('2d');
+const scanBtn = document.getElementById('scanBtn');
+const valueEl = document.getElementById('value');
+const metaEl  = document.getElementById('meta');
+const barEl   = document.getElementById('bar');
+const statusEl= document.getElementById('status');
+
+let worker = null;
+
+// 1) Kamera starten (Rückkamera bevorzugt)
+async function startCamera() {
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 } },
+      audio: false
+    });
+    video.srcObject = stream;
+    await video.play();
+    statusEl.classList.add('hidden');
+    scanBtn.disabled = false;
+  } catch (err) {
+    statusEl.classList.remove('hidden');
+    statusEl.textContent = 'Kamera nicht verfügbar. Bitte über HTTPS öffnen und Kamerazugriff erlauben.';
+  }
+}
+
+// 2) OCR-Worker vorbereiten (nur Ziffern)
+async function initOCR() {
+  worker = await Tesseract.createWorker('eng');
+  await worker.setParameters({
+    tessedit_char_whitelist: '0123456789',
+    tessedit_pageseg_mode: '7' // eine einzelne Textzeile
+  });
+}
+
+// 3) Nur den Ausschnitt im Rahmen ausschneiden + OCR
+async function scan() {
+  if (!worker) return;
+  scanBtn.disabled = true;
+  metaEl.textContent = '';
+  valueEl.className = 'value';
+  valueEl.textContent = 'lese …';
+  barEl.style.width = '0%';
+
+  const vw = video.videoWidth, vh = video.videoHeight;
+  // Gleicher Ausschnitt wie der visuelle Rahmen: 78% Breite, schmale Zeile mittig
+  const cropW = vw * 0.78;
+  const cropH = vh * 0.16;
+  const cropX = (vw - cropW) / 2;
+  const cropY = vh * 0.46 - cropH / 2;
+
+  // hochskaliert für bessere Erkennung
+  const scale = 3;
+  canvas.width = cropW * scale;
+  canvas.height = cropH * scale;
+  ctx.drawImage(video, cropX, cropY, cropW, cropH, 0, 0, canvas.width, canvas.height);
+
+  // simpler Kontrast-Boost (Graustufen + Schwellwert)
+  const img = ctx.getImageData(0, 0, canvas.width, canvas.height);
+  const d = img.data;
+  for (let i = 0; i < d.length; i += 4) {
+    const g = 0.299*d[i] + 0.587*d[i+1] + 0.114*d[i+2];
+    const v = g > 110 ? 255 : 0;
+    d[i] = d[i+1] = d[i+2] = v;
+  }
+  ctx.putImageData(img, 0, 0);
+
+  try {
+    const { data } = await worker.recognize(canvas, {}, {
+      // Fortschritt
+    });
+    const digits = (data.text || '').replace(/\D/g, '');
+    if (digits.length >= 3) {
+      valueEl.textContent = digits;
+      valueEl.className = 'value done';
+      const conf = Math.round(data.confidence || 0);
+      metaEl.textContent = '✓ erkannt · Konfidenz ' + conf + '%';
+    } else {
+      valueEl.textContent = '– – – – –';
+      valueEl.className = 'value placeholder';
+      metaEl.style.color = '#ff5a1f';
+      metaEl.textContent = 'Keine Ziffern erkannt – näher ran, ruhig halten.';
+      setTimeout(() => { metaEl.style.color = ''; }, 2500);
+    }
+  } catch (e) {
+    valueEl.textContent = 'Fehler';
+    valueEl.className = 'value placeholder';
+  } finally {
+    barEl.style.width = '100%';
+    scanBtn.disabled = false;
+  }
+}
+
+scanBtn.addEventListener('click', scan);
+
+(async () => {
+  await startCamera();
+  statusEl.textContent = 'OCR wird geladen …';
+  if (video.srcObject) statusEl.classList.remove('hidden');
+  await initOCR();
+  statusEl.classList.add('hidden');
+})();
+</script>
+</body>
+</html>
